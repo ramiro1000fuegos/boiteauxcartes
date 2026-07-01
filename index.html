@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Révèle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg: #15121B;
+    --bg-raised: #1E1A26;
+    --spot: #E8A33D;
+    --spot-dim: #7A5A26;
+    --text: #F4EEE3;
+    --text-muted: #948C9E;
+    --teal: #4E9E97;
+    --danger: #C1595A;
+    --line: #2C2733;
+    --radius: 14px;
+    --font-display: "Fraunces", Georgia, serif;
+    --font-ui: "Inter", system-ui, sans-serif;
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-ui);
+    overflow:hidden;
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+  }
+  button{font-family:inherit; cursor:pointer;}
+  button:focus-visible, input:focus-visible, [tabindex]:focus-visible{
+    outline:2px solid var(--spot);
+    outline-offset:3px;
+  }
+  input{font-family:inherit;}
+
+  .rv-screen{
+    flex:1;
+    display:none;
+    flex-direction:column;
+    min-height:0;
+    padding:max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  }
+  .rv-screen.rv-active{display:flex;}
+
+  /* ---------- top bar ---------- */
+  .rv-topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding-bottom:14px;
+    flex-shrink:0;
+  }
+  .rv-topbar-info{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    min-width:0;
+  }
+  .rv-eyebrow{
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-muted);
+  }
+  .rv-game-name{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:18px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .rv-icon-btn{
+    background:var(--bg-raised);
+    border:1px solid var(--line);
+    color:var(--text-muted);
+    width:38px; height:38px;
+    border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    transition:border-color .15s, color .15s;
+  }
+  .rv-icon-btn:hover{border-color:var(--spot-dim); color:var(--text);}
+  .rv-icon-btn svg{width:18px; height:18px;}
+
+  /* ---------- generic controls ---------- */
+  .rv-btn{
+    border:none;
+    border-radius:12px;
+    padding:15px 22px;
+    font-size:16px;
+    font-weight:600;
+    font-family:var(--font-ui);
+  }
+  .rv-btn-primary{
+    background:var(--spot);
+    color:#1B140A;
+  }
+  .rv-btn-primary:active{transform:scale(.98);}
+  .rv-btn-ghost{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--text);
+  }
+  .rv-btn-ghost:hover{border-color:var(--spot-dim);}
+  .rv-btn-text{
+    background:none; border:none; color:var(--text-muted);
+    font-size:14px; text-decoration:underline; text-underline-offset:3px;
+    padding:6px;
+  }
+  .rv-btn-text:hover{color:var(--text);}
+
+  h1.rv-title{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:clamp(26px, 7vw, 34px);
+    margin:0 0 6px;
+  }
+  p.rv-sub{
+    color:var(--text-muted);
+    font-size:15px;
+    line-height:1.5;
+    margin:0 0 22px;
+  }
+
+  /* ---------- home / loading / error ---------- */
+  #screen-home, #screen-loading, #screen-error{
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+  }
+  .rv-mark{
+    width:64px; height:64px;
+    border-radius:50%;
+    background:radial-gradient(circle at 50% 40%, var(--spot), var(--spot-dim) 70%, transparent 72%);
+    margin:0 auto 22px;
+    filter: drop-shadow(0 0 24px rgba(232,163,61,.35));
+  }
+  .rv-spinner{
+    width:34px; height:34px;
+    border-radius:50%;
+    border:3px solid var(--line);
+    border-top-color:var(--spot);
+    animation:rv-spin 0.9s linear infinite;
+    margin:0 auto 18px;
+  }
+  @keyframes rv-spin{to{transform:rotate(360deg);}}
+
+  /* ---------- list screens (game / category) ---------- */
+  .rv-list-wrap{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-height:0;
+  }
+  .rv-scroll{
+    flex:1;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:8px;
+  }
+  .rv-option{
+    display:flex; align-items:center; justify-content:space-between;
+    width:100%;
+    background:var(--bg-raised);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px 18px;
+    margin-bottom:10px;
+    color:var(--text);
+    font-family:var(--font-display);
+    font-size:18px;
+    text-align:left;
+  }
+  .rv-option:hover{border-color:var(--spot-dim);}
+  .rv-option svg{width:16px; height:16px; color:var(--text-muted); flex-shrink:0;}
+
+  .rv-chip-row{
+    display:flex; flex-wrap:wrap; gap:8px;
+    margin-bottom:16px;
+  }
+  .rv-chip{
+    border:1px solid var(--line);
+    background:transparent;
+    color:var(--text-muted);
+    border-radius:999px;
+    padding:9px 15px;
+    font-size:14px;
+    font-weight:500;
+    transition:background .15s, color .15s, border-color .15s;
+  }
+  .rv-chip[aria-pressed="true"]{
+    background:var(--teal);
+    border-color:var(--teal);
+    color:#0D2422;
+    font-weight:600;
+  }
+  .rv-util-row{
+    display:flex; gap:16px; margin-bottom:16px;
+  }
+  .rv-footer-actions{
+    flex-shrink:0;
+    padding-top:12px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .rv-count-note{
+    font-size:13px;
+    color:var(--text-muted);
+    text-align:center;
+  }
+
+  /* ---------- stage (main play) ---------- */
+  #screen-stage{
+    padding:0;
+    position:relative;
+  }
+  .rv-stage-topbar{
+    padding:max(18px, env(safe-area-inset-top)) 18px 10px;
+  }
+  .rv-stage-body{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    min-height:0;
+    padding:20px;
+  }
+  .rv-spotlight{
+    position:absolute;
+    inset:0;
+    background: radial-gradient(circle at 50% 42%, rgba(232,163,61,.16), transparent 60%);
+    opacity:0;
+    transition:opacity .5s ease;
+    pointer-events:none;
+  }
+  .rv-spotlight.rv-on{opacity:1;}
+
+  .rv-idle{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:22px;
+  }
+  .rv-reveal-btn{
+    width:180px; height:180px;
+    border-radius:50%;
+    background: radial-gradient(circle at 50% 38%, #F5BE6A, var(--spot) 60%, var(--spot-dim) 100%);
+    border:none;
+    color:#1B140A;
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:22px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.05), 0 18px 40px -12px rgba(232,163,61,.45);
+  }
+  .rv-reveal-btn:active{transform:scale(.97);}
+
+  .rv-card{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    gap:26px;
+    width:100%;
+    max-width:520px;
+    animation:rv-rise .45s ease;
+  }
+  .rv-card.rv-visible{display:flex;}
+  @keyframes rv-rise{
+    from{opacity:0; transform:translateY(14px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  .rv-category-tag{
+    font-size:12px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--teal);
+    background:rgba(78,158,151,.12);
+    border:1px solid rgba(78,158,151,.35);
+    border-radius:999px;
+    padding:5px 14px;
+  }
+  .rv-text-content{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:clamp(22px, 6vw, 32px);
+    line-height:1.3;
+    text-align:center;
+    max-height:42vh;
+    overflow-y:auto;
+    padding:0 4px;
+  }
+
+  .rv-stage-footer{
+    flex-shrink:0;
+    padding:14px 18px max(18px, env(safe-area-inset-bottom));
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+  }
+  .rv-dots{
+    display:flex; gap:6px; flex-wrap:wrap; justify-content:center; max-width:280px;
+  }
+  .rv-dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--line);
+  }
+  .rv-dot.rv-used{background:var(--spot-dim);}
+  .rv-count-text{
+    font-size:13px; color:var(--text-muted);
+  }
+
+  .rv-empty-deck{
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+    text-align:center;
+  }
+  .rv-empty-deck.rv-visible{display:flex;}
+
+  /* ---------- settings overlay ---------- */
+  #screen-settings{
+    position:fixed; inset:0;
+    background:var(--bg);
+    z-index:20;
+  }
+  .rv-field-label{
+    font-size:13px;
+    color:var(--text-muted);
+    margin-bottom:8px;
+    display:block;
+  }
+  .rv-input{
+    width:100%;
+    background:var(--bg-raised);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:13px 14px;
+    color:var(--text);
+    font-size:15px;
+    margin-bottom:14px;
+  }
+  .rv-hint{
+    font-size:13px;
+    color:var(--text-muted);
+    line-height:1.5;
+    margin-bottom:22px;
+  }
+  .rv-error-box{
+    background:rgba(193,89,90,.1);
+    border:1px solid rgba(193,89,90,.4);
+    color:#E8A5A5;
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:14px;
+    margin-bottom:14px;
+    display:none;
+  }
+  .rv-error-box.rv-visible{display:block;}
+
+  [hidden]{display:none !important;}
+
+  @media (prefers-reduced-motion: reduce){
+    .rv-card, .rv-spinner{animation:none !important;}
+    .rv-spotlight{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+  <!-- ===================== HOME ===================== -->
+  <section id="screen-home" class="rv-screen rv-active">
+    <div class="rv-mark" aria-hidden="true"></div>
+    <h1 class="rv-title">Révèle</h1>
+    <p class="rv-sub">Un texte au hasard, révélé puis caché.<br>Pour Top Ten, Esquissé, et tout jeu au même principe.</p>
+    <button class="rv-btn rv-btn-primary" id="btn-home-start" style="margin-bottom:12px;">Commencer</button>
+    <button class="rv-btn-text" id="btn-home-settings">Charger un autre jeu de textes</button>
+  </section>
+
+  <!-- ===================== LOADING ===================== -->
+  <section id="screen-loading" class="rv-screen">
+    <div class="rv-spinner" aria-hidden="true"></div>
+    <p class="rv-sub" style="margin:0;">Chargement des textes…</p>
+  </section>
+
+  <!-- ===================== ERROR ===================== -->
+  <section id="screen-error" class="rv-screen">
+    <h1 class="rv-title">Ça n'a pas marché</h1>
+    <p class="rv-sub" id="error-message">La source de textes n'a pas pu être chargée.</p>
+    <button class="rv-btn rv-btn-primary" id="btn-error-settings" style="margin-bottom:10px;">Changer de source</button>
+    <button class="rv-btn-text" id="btn-error-retry">Réessayer</button>
+  </section>
+
+  <!-- ===================== GAME SELECT ===================== -->
+  <section id="screen-game-select" class="rv-screen">
+    <div class="rv-list-wrap">
+      <h1 class="rv-title">Quel jeu ?</h1>
+      <p class="rv-sub">Plusieurs jeux ont été trouvés dans cette source.</p>
+      <div class="rv-scroll" id="game-list"></div>
+    </div>
+  </section>
+
+  <!-- ===================== CATEGORY SELECT ===================== -->
+  <section id="screen-category-select" class="rv-screen">
+    <div class="rv-list-wrap">
+      <h1 class="rv-title">Quelles catégories ?</h1>
+      <p class="rv-sub">Décoche celles que tu ne veux pas utiliser.</p>
+      <div class="rv-scroll">
+        <div class="rv-util-row">
+          <button class="rv-btn-text" id="btn-cat-all">Tout cocher</button>
+          <button class="rv-btn-text" id="btn-cat-none">Tout décocher</button>
+        </div>
+        <div class="rv-chip-row" id="category-list"></div>
+      </div>
+      <div class="rv-footer-actions">
+        <p class="rv-count-note" id="cat-count-note"></p>
+        <button class="rv-btn rv-btn-primary" id="btn-cat-play">Jouer</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== STAGE ===================== -->
+  <section id="screen-stage" class="rv-screen">
+    <div class="rv-stage-topbar rv-topbar">
+      <div class="rv-topbar-info">
+        <span class="rv-eyebrow">En cours</span>
+        <span class="rv-game-name" id="stage-game-name">—</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="rv-icon-btn" id="btn-stage-categories" aria-label="Changer les catégories" title="Catégories">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <button class="rv-icon-btn" id="btn-stage-settings" aria-label="Paramètres" title="Paramètres">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="rv-stage-body">
+      <div class="rv-spotlight" id="spotlight" aria-hidden="true"></div>
+
+      <div class="rv-idle" id="stage-idle">
+        <button class="rv-reveal-btn" id="btn-reveal">Révéler</button>
+      </div>
+
+      <div class="rv-card" id="stage-card">
+        <span class="rv-category-tag" id="card-category"></span>
+        <div class="rv-text-content" id="card-text"></div>
+        <button class="rv-btn rv-btn-ghost" id="btn-hide">Cacher</button>
+      </div>
+
+      <div class="rv-empty-deck" id="stage-empty">
+        <p class="rv-sub" style="margin:0;">Paquet épuisé.</p>
+        <button class="rv-btn rv-btn-primary" id="btn-reshuffle">Remélanger</button>
+      </div>
+    </div>
+
+    <div class="rv-stage-footer">
+      <div class="rv-dots" id="deck-dots"></div>
+      <span class="rv-count-text" id="deck-count-text"></span>
+    </div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section id="screen-settings" class="rv-screen">
+    <div class="rv-topbar">
+      <div class="rv-topbar-info">
+        <span class="rv-eyebrow">Réglages</span>
+        <span class="rv-game-name">Source des textes</span>
+      </div>
+      <button class="rv-icon-btn" id="btn-settings-close" aria-label="Fermer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="rv-scroll">
+      <div class="rv-error-box" id="settings-error"></div>
+
+      <label class="rv-field-label" for="input-csv-url">URL du CSV (Google Sheet publiée en CSV, ou tout lien direct .csv)</label>
+      <input class="rv-input" id="input-csv-url" type="url" inputmode="url" placeholder="https://docs.google.com/…/pub?output=csv">
+      <p class="rv-hint">Le fichier doit avoir 3 colonnes : <strong>jeu</strong>, <strong>categorie</strong>, <strong>texte</strong>. Une ligne par texte à révéler.</p>
+
+      <button class="rv-btn rv-btn-primary" id="btn-settings-load" style="width:100%; margin-bottom:10px;">Charger cette source</button>
+      <button class="rv-btn-text" id="btn-settings-default">Revenir à la source par défaut</button>
+    </div>
+  </section>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Config ---------------------------------------------------------
+  // Remplace par l'URL de ta Google Sheet publiée en CSV
+  // (Fichier > Partager > Publier sur le web > format CSV)
+  var DEFAULT_CSV_URL = "";
+
+  var STORAGE_KEY_URL = "revele.csvUrl";
+
+  // Jeu d'exemple utilisé si aucune URL par défaut n'est configurée
+  // et qu'aucune URL personnalisée n'a été chargée.
+  var SAMPLE_ROWS = [
+    {jeu:"Exemple : Top Ten", categorie:"Réactions", texte:"Une boule de pétanque est tombée sur ton pied. Réagis, de (-) pas mal du tout à (+) très très mal."},
+    {jeu:"Exemple : Top Ten", categorie:"Réactions", texte:"Tu croises ton ex au supermarché. Réagis, de (-) indifférence totale à (+) fuite immédiate."},
+    {jeu:"Exemple : Top Ten", categorie:"Classement", texte:"Classe ces desserts du (-) moins bon au (+) meilleur : flan, tarte aux pommes, mousse au chocolat."},
+    {jeu:"Exemple : Top Ten", categorie:"Classement", texte:"Classe ces animaux du (-) moins dangereux au (+) plus dangereux si tu devais l'affronter à mains nues : oie, chèvre, cygne."},
+    {jeu:"Exemple : Esquissé", categorie:"Phrases", texte:"Un pingouin fait du skateboard sur la banquise."},
+    {jeu:"Exemple : Esquissé", categorie:"Phrases", texte:"Le facteur livre une pizza par erreur au président."},
+    {jeu:"Exemple : Esquissé", categorie:"Objets", texte:"Une théière qui joue de la trompette."},
+    {jeu:"Exemple : Esquissé", categorie:"Objets", texte:"Un parapluie transformé en fusée."}
+  ];
+
+  // ---- State ------------------------------------------------------------
+  var allRows = [];          // toutes les lignes du CSV, normalisées
+  var games = [];             // liste des jeux distincts
+  var currentGame = null;
+  var categoriesForGame = []; // liste des catégories distinctes du jeu choisi
+  var selectedCategories = new Set();
+  var deck = [];               // pioche mélangée courante
+  var deckPos = 0;             // index de la prochaine carte à tirer
+  var deckTotal = 0;
+
+  // ---- DOM shortcuts ------------------------------------------------------
+  var $ = function(id){ return document.getElementById(id); };
+  var screens = ["home","loading","error","game-select","category-select","stage","settings"];
+  function showScreen(name){
+    screens.forEach(function(s){
+      $("screen-"+s).classList.toggle("rv-active", s === name);
+    });
+  }
+
+  function normalizeKey(k){
+    return (k||"").toString().trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  }
+
+  function stripAccents(s){
+    return (s||"").toString().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  }
+
+  // ---- Loading ------------------------------------------------------------
+  function getStoredUrl(){
+    try { return localStorage.getItem(STORAGE_KEY_URL) || ""; }
+    catch(e){ return ""; }
+  }
+  function setStoredUrl(url){
+    try {
+      if (url) localStorage.setItem(STORAGE_KEY_URL, url);
+      else localStorage.removeItem(STORAGE_KEY_URL);
+    } catch(e){}
+  }
+
+  function loadFromUrl(url){
+    showScreen("loading");
+    Papa.parse(url, {
+      download:true,
+      header:true,
+      skipEmptyLines:true,
+      complete:function(results){
+        try{
+          var rows = rowsFromParsed(results.data);
+          if (!rows.length) throw new Error("empty");
+          onDataLoaded(rows);
+        }catch(e){
+          showError("Le fichier a été trouvé, mais aucune ligne exploitable n'a été lue. Vérifie les colonnes jeu / categorie / texte.");
+        }
+      },
+      error:function(){
+        showError("Impossible de récupérer ce fichier. Vérifie que l'URL est publique et pointe vers un CSV.");
+      }
+    });
+  }
+
+  function rowsFromParsed(data){
+    var out = [];
+    data.forEach(function(row){
+      var normalized = {};
+      Object.keys(row).forEach(function(k){
+        normalized[normalizeKey(k)] = (row[k]||"").toString().trim();
+      });
+      var jeu = normalized["jeu"] || "";
+      var categorie = normalized["categorie"] || normalized["catégorie"] || "";
+      var texte = normalized["texte"] || "";
+      if (jeu && texte){
+        out.push({jeu:jeu, categorie: categorie || "Général", texte:texte});
+      }
+    });
+    return out;
+  }
+
+  function loadSample(){
+    onDataLoaded(SAMPLE_ROWS.slice());
+  }
+
+  function showError(msg){
+    $("error-message").textContent = msg;
+    showScreen("error");
+  }
+
+  function onDataLoaded(rows){
+    allRows = rows;
+    games = uniqueValues(rows.map(function(r){return r.jeu;}));
+    if (games.length > 1){
+      renderGameList();
+      showScreen("game-select");
+    } else {
+      selectGame(games[0]);
+    }
+  }
+
+  function uniqueValues(arr){
+    var seen = [];
+    arr.forEach(function(v){ if (seen.indexOf(v) === -1) seen.push(v); });
+    return seen;
+  }
+
+  // ---- Game select ------------------------------------------------------
+  function renderGameList(){
+    var wrap = $("game-list");
+    wrap.innerHTML = "";
+    games.forEach(function(g){
+      var btn = document.createElement("button");
+      btn.className = "rv-option";
+      btn.innerHTML = "<span></span><svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 18l6-6-6-6'/></svg>";
+      btn.querySelector("span").textContent = g;
+      btn.addEventListener("click", function(){ selectGame(g); });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function selectGame(game){
+    currentGame = game;
+    var rowsForGame = allRows.filter(function(r){ return r.jeu === game; });
+    categoriesForGame = uniqueValues(rowsForGame.map(function(r){ return r.categorie; }));
+    if (categoriesForGame.length > 1){
+      selectedCategories = new Set(categoriesForGame);
+      renderCategoryList();
+      showScreen("category-select");
+    } else {
+      selectedCategories = new Set(categoriesForGame);
+      startDeck();
+    }
+  }
+
+  // ---- Category select ----------------------------------------------------
+  function renderCategoryList(){
+    var wrap = $("category-list");
+    wrap.innerHTML = "";
+    categoriesForGame.forEach(function(cat){
+      var chip = document.createElement("button");
+      chip.className = "rv-chip";
+      chip.type = "button";
+      chip.textContent = cat;
+      chip.setAttribute("aria-pressed", selectedCategories.has(cat) ? "true" : "false");
+      chip.addEventListener("click", function(){
+        if (selectedCategories.has(cat)) selectedCategories.delete(cat);
+        else selectedCategories.add(cat);
+        chip.setAttribute("aria-pressed", selectedCategories.has(cat) ? "true" : "false");
+        updateCatCountNote();
+      });
+      wrap.appendChild(chip);
+    });
+    updateCatCountNote();
+  }
+
+  function updateCatCountNote(){
+    var n = countRowsForSelection();
+    $("cat-count-note").textContent = n + (n > 1 ? " textes sélectionnés" : " texte sélectionné");
+    $("btn-cat-play").disabled = n === 0;
+    $("btn-cat-play").style.opacity = n === 0 ? .5 : 1;
+  }
+
+  function countRowsForSelection(){
+    return allRows.filter(function(r){
+      return r.jeu === currentGame && selectedCategories.has(r.categorie);
+    }).length;
+  }
+
+  $("btn-cat-all").addEventListener("click", function(){
+    selectedCategories = new Set(categoriesForGame);
+    renderCategoryList();
+  });
+  $("btn-cat-none").addEventListener("click", function(){
+    selectedCategories = new Set();
+    renderCategoryList();
+  });
+  $("btn-cat-play").addEventListener("click", startDeck);
+
+  // ---- Deck / stage --------------------------------------------------------
+  function buildPool(){
+    return allRows.filter(function(r){
+      return r.jeu === currentGame && selectedCategories.has(r.categorie);
+    });
+  }
+
+  function shuffle(arr){
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  function startDeck(){
+    deck = shuffle(buildPool());
+    deckTotal = deck.length;
+    deckPos = 0;
+    $("stage-game-name").textContent = currentGame;
+    resetStageVisual();
+    renderDots();
+    showScreen("stage");
+  }
+
+  function resetStageVisual(){
+    $("stage-idle").style.display = "flex";
+    $("stage-card").classList.remove("rv-visible");
+    $("stage-empty").classList.remove("rv-visible");
+    $("spotlight").classList.remove("rv-on");
+  }
+
+  function renderDots(){
+    var wrap = $("deck-dots");
+    wrap.innerHTML = "";
+    if (deckTotal <= 40){
+      for (var i = 0; i < deckTotal; i++){
+        var d = document.createElement("span");
+        d.className = "rv-dot" + (i < deckPos ? " rv-used" : "");
+        wrap.appendChild(d);
+      }
+      $("deck-count-text").textContent = "";
+    } else {
+      $("deck-count-text").textContent = (deckTotal - deckPos) + " / " + deckTotal + " restants";
+    }
+  }
+
+  function reveal(){
+    if (deckPos >= deckTotal){
+      $("stage-idle").style.display = "none";
+      $("stage-empty").classList.add("rv-visible");
+      return;
+    }
+    var item = deck[deckPos];
+    deckPos++;
+    $("card-category").textContent = item.categorie;
+    $("card-text").textContent = item.texte;
+    $("stage-idle").style.display = "none";
+    $("stage-card").classList.add("rv-visible");
+    $("spotlight").classList.add("rv-on");
+    renderDots();
+  }
+
+  function hideCard(){
+    $("stage-card").classList.remove("rv-visible");
+    $("spotlight").classList.remove("rv-on");
+    if (deckPos >= deckTotal){
+      $("stage-empty").classList.add("rv-visible");
+    } else {
+      $("stage-idle").style.display = "flex";
+    }
+  }
+
+  $("btn-reveal").addEventListener("click", reveal);
+  $("btn-hide").addEventListener("click", hideCard);
+  $("btn-reshuffle").addEventListener("click", function(){
+    deck = shuffle(buildPool());
+    deckPos = 0;
+    $("stage-empty").classList.remove("rv-visible");
+    $("stage-idle").style.display = "flex";
+    renderDots();
+  });
+
+  $("btn-stage-categories").addEventListener("click", function(){
+    if (categoriesForGame.length > 1){
+      renderCategoryList();
+      showScreen("category-select");
+    } else if (games.length > 1) {
+      renderGameList();
+      showScreen("game-select");
+    }
+  });
+
+  // ---- Settings ---------------------------------------------------------
+  function openSettings(){
+    $("input-csv-url").value = getStoredUrl();
+    $("settings-error").classList.remove("rv-visible");
+    showScreen("settings");
+  }
+  $("btn-home-settings").addEventListener("click", openSettings);
+  $("btn-error-settings").addEventListener("click", openSettings);
+  $("btn-stage-settings").addEventListener("click", openSettings);
+  $("btn-settings-close").addEventListener("click", function(){
+    showScreen(allRows.length ? "stage" : "home");
+  });
+
+  $("btn-settings-load").addEventListener("click", function(){
+    var url = $("input-csv-url").value.trim();
+    if (!url){
+      $("settings-error").textContent = "Colle une URL avant de charger.";
+      $("settings-error").classList.add("rv-visible");
+      return;
+    }
+    setStoredUrl(url);
+    loadFromUrl(url);
+  });
+
+  $("btn-settings-default").addEventListener("click", function(){
+    setStoredUrl("");
+    $("input-csv-url").value = "";
+    bootstrap();
+  });
+
+  $("btn-error-retry").addEventListener("click", bootstrap);
+  $("btn-home-start").addEventListener("click", bootstrap);
+
+  // ---- Bootstrap ----------------------------------------------------------
+  function bootstrap(){
+    var stored = getStoredUrl();
+    var url = stored || DEFAULT_CSV_URL;
+    if (url){
+      loadFromUrl(url);
+    } else {
+      loadSample();
+    }
+  }
+
+  showScreen("home");
+})();
+</script>
+</body>
+</html>
